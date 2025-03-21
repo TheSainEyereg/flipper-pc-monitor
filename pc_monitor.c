@@ -4,106 +4,18 @@ static void render_callback(Canvas* canvas, void* ctx) {
     furi_assert(ctx);
     PcMonitorApp* app = ctx;
 
-    if(app->bt_state == BtStateRecieving) {
-        canvas_clear(canvas);
-        canvas_set_color(canvas, ColorBlack);
-        canvas_set_font(canvas, FontKeyboard);
+    switch(app->bt_state) {
+    case BtStateWaiting:
+        draw_connect_view(canvas);
+        break;
 
-        uint8_t line = 0;
-        uint8_t spacing = app->lines_count ? SCREEN_HEIGHT / app->lines_count : 0;
-        uint8_t margin_top = spacing ? (spacing - LINE_HEIGHT) / 2 : 0;
-        char str[32];
+    case BtStateRecieving:
+        draw_bars_view(canvas, app);
+        break;
 
-        if(app->data.cpu_usage <= 100) {
-            if(app->lines_count) {
-                canvas_draw_str(canvas, 1, margin_top + line * spacing + 9, "CPU");
-                snprintf(str, 32, "%d%%", app->data.cpu_usage);
-                elements_progress_bar_with_text(
-                    canvas,
-                    BAR_X,
-                    margin_top + line * spacing,
-                    BAR_WIDTH,
-                    app->data.cpu_usage / 100.0f,
-                    str);
-            }
-
-            line++;
-        }
-
-        if(app->data.ram_usage <= 100) {
-            if(app->lines_count) {
-                canvas_draw_str(canvas, 1, margin_top + line * spacing + 9, "RAM");
-                snprintf(
-                    str,
-                    32,
-                    "%.1f/%.1f %s",
-                    (double)(app->data.ram_max * 0.1f * app->data.ram_usage * 0.01f),
-                    (double)(app->data.ram_max * 0.1f),
-                    app->data.ram_unit);
-                elements_progress_bar_with_text(
-                    canvas,
-                    BAR_X,
-                    margin_top + line * spacing,
-                    BAR_WIDTH,
-                    app->data.ram_usage * 0.01f,
-                    str);
-            }
-
-            line++;
-        }
-
-        if(app->data.gpu_usage <= 100) {
-            if(app->lines_count) {
-                canvas_draw_str(canvas, 1, margin_top + line * spacing + 9, "GPU");
-                snprintf(str, 32, "%d%%", app->data.gpu_usage);
-                elements_progress_bar_with_text(
-                    canvas,
-                    BAR_X,
-                    margin_top + line * spacing,
-                    BAR_WIDTH,
-                    app->data.gpu_usage / 100.0f,
-                    str);
-            }
-
-            line++;
-        }
-
-        if(app->data.vram_usage <= 100) {
-            if(app->lines_count) {
-                canvas_draw_str(canvas, 1, margin_top + line * spacing + 9, "VRAM");
-                snprintf(
-                    str,
-                    32,
-                    "%.1f/%.1f %s",
-                    (double)(app->data.vram_max * 0.1f * app->data.vram_usage * 0.01f),
-                    (double)(app->data.vram_max * 0.1f),
-                    app->data.vram_unit);
-                elements_progress_bar_with_text(
-                    canvas,
-                    BAR_X,
-                    margin_top + line * spacing,
-                    BAR_WIDTH,
-                    app->data.vram_usage * 0.01f,
-                    str);
-            }
-
-            line++;
-        }
-
-        if(line == 0) app->bt_state = BtStateNoData;
-        app->lines_count = line;
-    } else {
-        canvas_draw_str_aligned(
-            canvas,
-            64,
-            32,
-            AlignCenter,
-            AlignCenter,
-            app->bt_state == BtStateChecking ? "Checking BLE..." :
-            app->bt_state == BtStateInactive ? "BLE inactive!" :
-            app->bt_state == BtStateWaiting  ? "Waiting for data..." :
-            app->bt_state == BtStateLost     ? "Connection lost!" :
-                                               "No data!");
+    default:
+        draw_status_view(canvas, app);
+        break;
     }
 }
 
@@ -163,16 +75,27 @@ int32_t pc_monitor_app(void* p) {
     UNUSED(p);
     PcMonitorApp* app = pc_monitor_alloc();
 
-    if(furi_hal_bt_is_active()) {
-        furi_hal_bt_serial_set_event_callback(BT_SERIAL_BUFFER_SIZE, bt_serial_callback, app);
-        furi_hal_bt_start_advertising();
+    bt_disconnect(app->bt);
 
-        app->bt_state = BtStateWaiting;
-        FURI_LOG_D(TAG, "Bluetooth is active!");
-    } else {
-        app->bt_state = BtStateInactive;
-        FURI_LOG_W(TAG, "Please, enable the Bluetooth and restart the app");
-    }
+    // Wait 2nd core to update nvm storage
+    furi_delay_ms(200);
+
+    bt_keys_storage_set_storage_path(app->bt, APP_DATA_PATH(".bt_serial.keys"));
+
+    BleProfileSerialParams params = {
+        .device_name_prefix = "PC Mon",
+        .mac_xor = 0x0002,
+    };
+    app->ble_serial_profile = bt_profile_start(app->bt, ble_profile_serial, &params);
+
+    furi_check(app->ble_serial_profile);
+
+    ble_profile_serial_set_event_callback(
+        app->ble_serial_profile, BT_SERIAL_BUFFER_SIZE, bt_serial_callback, app);
+    furi_hal_bt_start_advertising();
+
+    app->bt_state = BtStateWaiting;
+    FURI_LOG_D(TAG, "Bluetooth is active!");
 
     // Main loop
     InputEvent event;
@@ -186,7 +109,16 @@ int32_t pc_monitor_app(void* p) {
             app->bt_state = BtStateLost;
     }
 
-    furi_hal_bt_serial_set_event_callback(0, NULL, NULL);
+    ble_profile_serial_set_event_callback(app->ble_serial_profile, 0, NULL, NULL);
+
+    bt_disconnect(app->bt);
+
+    // Wait 2nd core to update nvm storage
+    furi_delay_ms(200);
+
+    bt_keys_storage_set_default_path(app->bt);
+
+    furi_check(bt_profile_restore_default(app->bt));
 
     pc_monitor_free(app);
 

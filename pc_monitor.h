@@ -3,20 +3,25 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <furi_hal_bt.h>
-#include <furi_hal_bt_serial.h>
+#include "helpers/ble_serial.h"
 #include <bt/bt_service/bt.h>
 #include <gui/gui.h>
 #include <gui/elements.h>
 #include <notification/notification_messages.h>
 #include <input/input.h>
+#include <storage/storage.h>
 
-#define TAG "PCMonitor"
+#include "views/bars_view.h"
+#include "views/connect_view.h"
+#include "views/status_view.h"
+
+#define TAG                   "PCMonitor"
 #define BT_SERIAL_BUFFER_SIZE 128
 
 #define SCREEN_HEIGHT 64
-#define LINE_HEIGHT 11
+#define LINE_HEIGHT   11
 
-#define BAR_X 30
+#define BAR_X     30
 #define BAR_WIDTH 97
 
 typedef enum {
@@ -48,6 +53,7 @@ typedef struct {
     FuriMutex* app_mutex;
     FuriMessageQueue* event_queue;
     NotificationApp* notification;
+    FuriHalBleProfileBase* ble_serial_profile;
 
     BtState bt_state;
     DataStruct data;
