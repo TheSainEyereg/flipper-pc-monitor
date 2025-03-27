@@ -41,6 +41,11 @@ static uint16_t bt_serial_callback(SerialServiceEvent event, void* ctx) {
             memcpy(&app->data, event.data.buffer, sizeof(DataStruct));
             app->bt_state = BtStateRecieving;
             app->last_packet = furi_hal_rtc_get_timestamp();
+
+            // Elegant solution, the backlight is only on when there is continuous communication
+            notification_message(app->notification, &sequence_display_backlight_on);
+
+            notification_message(app->notification, &sequence_blink_blue_10);
         }
     }
 
