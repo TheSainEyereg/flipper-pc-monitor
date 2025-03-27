@@ -1,3 +1,12 @@
+## 1.1.2
+
+- Blue LED blinks on data reception
+- Backlight is now enabled during communication
+
+## 1.1.1
+
+- Bump for README acknowledgement fixes
+
 ## 1.1.0
 
 - Fixed app for latest firmware
