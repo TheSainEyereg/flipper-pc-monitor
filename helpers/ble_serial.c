@@ -82,22 +82,17 @@ static void
     }
 
     // Set advertise name
-    memset(config->adv_name, 0, sizeof(config->adv_name));
-
     const char* clicker_str = "Serial";
     if(serial_profile_params && serial_profile_params->device_name_prefix) {
         clicker_str = serial_profile_params->device_name_prefix;
     }
-    FuriString* name = furi_string_alloc_printf(
+    snprintf(
+        config->adv_name,
+        sizeof(config->adv_name),
         "%c%s %s",
         furi_hal_version_get_ble_local_device_name_ptr()[0],
         clicker_str,
         furi_hal_version_get_name_ptr());
-    if(furi_string_size(name) >= sizeof(config->adv_name)) {
-        furi_string_left(name, sizeof(config->adv_name) - 1);
-    }
-    memcpy(config->adv_name, furi_string_get_cstr(name), furi_string_size(name));
-    furi_string_free(name);
 
     config->adv_service.UUID_Type = UUID_TYPE_16;
     config->adv_service.Service_UUID_16 |= furi_hal_version_get_hw_color();
