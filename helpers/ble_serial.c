@@ -3,6 +3,9 @@
  * 
  * Thank you to Willy-JL for providing this code and making it available under the https://github.com/Flipper-XFW/Xtreme-Apps repository.
  * Your contribution has been invaluable for this project.
+ * 
+ * Based on <targets/f7/ble_glue/profiles/serial_profile.c>
+ * and on <lib/ble_profile/extra_profiles/hid_profile.c>
  */
 
 #include "ble_serial.h"
@@ -11,6 +14,7 @@
 #include <furi_ble/profile_interface.h>
 #include <services/serial_service.h>
 #include <furi.h>
+#include <ble/core/ble_defs.h>
 
 typedef struct {
     FuriHalBleProfileBase base;
@@ -39,14 +43,24 @@ static void ble_profile_serial_stop(FuriHalBleProfileBase* profile) {
     ble_svc_serial_stop(serial_profile->serial_svc);
 }
 
-static GapConfig serial_template_config = {
-    .adv_service_uuid = 0x3080,
+// AN5289: 4.7, in order to use flash controller interval must be at least 25ms + advertisement, which is 30 ms
+// Since we don't use flash controller anymore interval can be lowered to 7.5ms
+#define CONNECTION_INTERVAL_MIN (0x06)
+// Up to 45 ms
+#define CONNECTION_INTERVAL_MAX (0x24)
+
+static const GapConfig serial_template_config = {
+    .adv_service =
+        {
+            .UUID_Type = UUID_TYPE_16,
+            .Service_UUID_16 = 0x3080,
+        },
     .appearance_char = 0x8600,
     .bonding_mode = true,
     .pairing_method = GapPairingPinCodeShow,
     .conn_param = {
-        .conn_int_min = 0x18, // 30 ms
-        .conn_int_max = 0x24, // 45 ms
+        .conn_int_min = CONNECTION_INTERVAL_MIN,
+        .conn_int_max = CONNECTION_INTERVAL_MAX,
         .slave_latency = 0,
         .supervisor_timeout = 0,
     }};
@@ -60,7 +74,7 @@ static void
     // Set mac address
     memcpy(config->mac_address, furi_hal_version_get_ble_mac(), sizeof(config->mac_address));
 
-    // Change MAC address for HID profile
+    // Change MAC address for Serial profile
     config->mac_address[2]++;
     if(serial_profile_params) {
         config->mac_address[0] ^= serial_profile_params->mac_xor;
@@ -86,7 +100,8 @@ static void
     memcpy(config->adv_name, furi_string_get_cstr(name), furi_string_size(name));
     furi_string_free(name);
 
-    config->adv_service_uuid |= furi_hal_version_get_hw_color();
+    config->adv_service.UUID_Type = UUID_TYPE_16;
+    config->adv_service.Service_UUID_16 |= furi_hal_version_get_hw_color();
 }
 
 static const FuriHalBleProfileTemplate profile_callbacks = {
@@ -95,7 +110,7 @@ static const FuriHalBleProfileTemplate profile_callbacks = {
     .get_gap_config = ble_profile_serial_get_config,
 };
 
-const FuriHalBleProfileTemplate* ble_profile_serial = &profile_callbacks;
+const FuriHalBleProfileTemplate* const ble_profile_serial = &profile_callbacks;
 
 void ble_profile_serial_set_event_callback(
     FuriHalBleProfileBase* profile,
