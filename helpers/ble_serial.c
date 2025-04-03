@@ -88,12 +88,11 @@ static void
     if(serial_profile_params && serial_profile_params->device_name_prefix) {
         clicker_str = serial_profile_params->device_name_prefix;
     }
-    // We don't have Flipper in BLE name, use printf instead of replace
     FuriString* name = furi_string_alloc_printf(
         "%c%s %s",
         furi_hal_version_get_ble_local_device_name_ptr()[0],
         clicker_str,
-        furi_hal_version_get_ble_local_device_name_ptr() + 1);
+        furi_hal_version_get_name_ptr());
     if(furi_string_size(name) >= sizeof(config->adv_name)) {
         furi_string_left(name, sizeof(config->adv_name) - 1);
     }
