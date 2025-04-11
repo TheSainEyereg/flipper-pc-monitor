@@ -1,3 +1,7 @@
+## 1.1.3
+
+- Adressed BLE API changes
+
 ## 1.1.2
 
 - Blue LED blinks on data reception
