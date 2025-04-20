@@ -50,11 +50,7 @@ static void ble_profile_serial_stop(FuriHalBleProfileBase* profile) {
 #define CONNECTION_INTERVAL_MAX (0x24)
 
 static const GapConfig serial_template_config = {
-    .adv_service =
-        {
-            .UUID_Type = UUID_TYPE_16,
-            .Service_UUID_16 = 0x3080,
-        },
+    .adv_service_uuid = 0x3080,
     .appearance_char = 0x8600,
     .bonding_mode = true,
     .pairing_method = GapPairingPinCodeShow,
@@ -94,8 +90,8 @@ static void
         clicker_str,
         furi_hal_version_get_name_ptr());
 
-    config->adv_service.UUID_Type = UUID_TYPE_16;
-    config->adv_service.Service_UUID_16 |= furi_hal_version_get_hw_color();
+    config->adv_service_uuid = UUID_TYPE_16;
+    config->adv_service_uuid |= furi_hal_version_get_hw_color();
 }
 
 static const FuriHalBleProfileTemplate profile_callbacks = {
